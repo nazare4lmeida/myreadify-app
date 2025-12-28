@@ -10,7 +10,6 @@ export default function BookCard({ livro }: { livro: any }) {
   const resolveCoverUrl = (url: string) => {
     if (!url) return "https://via.placeholder.com/300x450";
     if (url.startsWith('http')) {
-        // Se a URL do banco já for completa e contiver localhost, corrigimos para o IP
         if (url.includes('localhost')) {
             const fileName = url.split('/').pop();
             return `${IMAGE_BASE_URL}/${fileName}`;

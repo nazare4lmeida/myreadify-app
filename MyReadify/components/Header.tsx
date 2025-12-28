@@ -4,10 +4,9 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
 
 export default function Header() {
-  const { signed, user } = useAuth();
+  const { signed, user, signOut } = useAuth(); // signOut agora é extraído
   const router = useRouter();
 
-  // Função para navegar com segurança de tipos
   const navigateTo = (path: string) => {
     router.push(path as any);
   };
@@ -26,7 +25,6 @@ export default function Header() {
             onPress={() => navigateTo('/perfil')}
           >
             <Text style={styles.profileName}>
-              {/* Usando tipagem segura para evitar erro de 'role' */}
               Olá, {(user as any)?.role === 'admin' ? 'Admin' : user?.name?.split(' ')[0]}
             </Text>
           </TouchableOpacity>
