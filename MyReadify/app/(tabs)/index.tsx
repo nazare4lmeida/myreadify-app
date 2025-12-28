@@ -6,10 +6,19 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
+  ActivityIndicator,
+  Dimensions
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import api from "../../src/services/api";
+import api, { IMAGE_BASE_URL } from '../../src/services/api';
+
+// Importação dos componentes que criamos
+import Header from "../../components/Header";
+import Footer from "../../components/Footer";
+import BookCard from "../../components/BookCard";
+
+const { width } = Dimensions.get('window');
 
 export default function HomePage() {
   const router = useRouter();
@@ -17,11 +26,24 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
 
+  // Função para tratar a URL da imagem (consistente com o resto do app)
+  const resolveCoverUrl = (url: string) => {
+    if (!url) return "https://via.placeholder.com/300x450";
+    if (url.startsWith('http')) {
+        if (url.includes('localhost')) {
+            const fileName = url.split('/').pop();
+            return `${IMAGE_BASE_URL}/${fileName}`;
+        }
+        return url;
+    }
+    const fileName = url.split('/').pop();
+    return `${IMAGE_BASE_URL}/${fileName}`;
+  };
+
   useEffect(() => {
     const fetchLatestBooks = async () => {
       try {
-        const response = await api.get("/books?page=1&limit=8");
-        // Lógica de fallback para mockData se a API falhar
+        const response = await api.get("api/books?page=1&limit=6");
         const data = response.data.books || response.data;
         setLatestBooks(data);
       } catch (error) {
@@ -33,95 +55,83 @@ export default function HomePage() {
     fetchLatestBooks();
   }, []);
 
-  // Timer para o Carrossel Hero (3 segundos como no seu site)
+  // Lógica do Carrossel Automático (Troca a cada 4 segundos)
   useEffect(() => {
     if (latestBooks.length > 0) {
       const timer = setInterval(() => {
         setCurrentSlide((prev) => (prev + 1) % Math.min(latestBooks.length, 5));
-      }, 3000);
+      }, 4000);
       return () => clearInterval(timer);
     }
   }, [latestBooks]);
 
   return (
     <SafeAreaView style={styles.container}>
+      <Header />
+      
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* HERO SECTION - Equivalente ao .hero-section do seu CSS */}
+        
+        {/* HERO SECTION COM CARROSSEL */}
         <View style={styles.heroSection}>
           <View style={styles.heroTextContainer}>
-            <Text style={styles.heroTitle}>
-              Sua próxima grande leitura começa aqui.
-            </Text>
-            <Text style={styles.heroSubtitle}>
-              Descubra, compartilhe e apaixone-se por novas histórias em sua
-              estante digital.
-            </Text>
-
-            <TouchableOpacity
-              style={styles.heroButton}
-              onPress={() => router.push("/explore" as any)}
-            >
-              <Text style={styles.heroButtonText}>Explorar Resumos</Text>
-            </TouchableOpacity>
+            <Text style={styles.heroTitle}>Sua próxima grande leitura começa aqui.</Text>
+            <Text style={styles.heroSubtitle}>Descubra histórias que transformam o seu mundo.</Text>
           </View>
 
-          {/* HERO CAROUSEL - Replicando o .hero-carousel do seu CSS */}
-          <View style={styles.carouselContainer}>
+          {/* CARROSSEL DE DESTAQUES */}
+          <View style={styles.carouselWrapper}>
             {loading ? (
-              <View style={styles.skeletonPlaceholder} />
+              <ActivityIndicator color="#975238" size="large" />
             ) : (
-              latestBooks
-                .slice(0, 5)
-                .map(
-                  (book, index) =>
-                    index === currentSlide && (
-                      <Image
-                        key={book.id || index}
-                        source={{
-                          uri:
-                            book.cover_url ||
-                            "https://via.placeholder.com/300x450",
-                        }}
-                        style={styles.carouselImage}
-                        resizeMode="cover"
-                      />
-                    )
+              latestBooks.slice(0, 5).map((book, index) => (
+                index === currentSlide && (
+                  <TouchableOpacity 
+                    key={book.id || index} 
+                    activeOpacity={0.9}
+                    onPress={() => router.push({ pathname: '/detalhes', params: { slug: book.slug } })}
+                    style={styles.slide}
+                  >
+                    <Image
+                      source={{ uri: resolveCoverUrl(book.cover_url) }}
+                      style={styles.carouselImage}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.carouselBadge}>
+                      <Text style={styles.carouselBadgeText}>Destaque</Text>
+                    </View>
+                  </TouchableOpacity>
                 )
+              ))
             )}
+            
+            {/* Indicadores (Pontinhos) */}
+            <View style={styles.pagination}>
+              {latestBooks.slice(0, 5).map((_, i) => (
+                <View 
+                  key={i} 
+                  style={[styles.dot, currentSlide === i && styles.activeDot]} 
+                />
+              ))}
+            </View>
           </View>
         </View>
 
-        {/* FEATURED SECTION - Adicionados Recentemente */}
-        <View style={styles.featuredSection}>
+        {/* SECTION RECENTES (Grid idêntica ao site) */}
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Adicionados Recentemente</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.horizontalScroll}
-          >
-            {latestBooks.map((book) => (
-              <TouchableOpacity
-                key={book.id || book.slug}
-                style={styles.bookCard}
-                onPress={() =>
-                  router.push({
-                    pathname: "/detalhes",
-                    params: { id: book.id, title: book.title },
-                  } as any)
-                }
-              >
-                <Image
-                  source={{ uri: book.cover_url }}
-                  style={styles.bookCover}
-                />
-                <Text style={styles.bookCardTitle} numberOfLines={1}>
-                  {book.title}
-                </Text>
-                <Text style={styles.bookCardAuthor}>{book.author}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          
+          {loading ? (
+            <ActivityIndicator color="#975238" />
+          ) : (
+            <View style={styles.bookGrid}>
+              {latestBooks.map((book) => (
+                <BookCard key={book.slug || book.id} livro={book} />
+              ))}
+            </View>
+          )}
         </View>
+
+        <Footer />
       </ScrollView>
     </SafeAreaView>
   );
@@ -129,63 +139,27 @@ export default function HomePage() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FAF9F7" },
-  heroSection: {
-    padding: 20,
-    alignItems: "center",
-    backgroundColor: "#FAF9F7",
-    minHeight: 400,
-  },
-  heroTextContainer: { width: "100%", alignItems: "center", marginBottom: 30 },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#333",
-    textAlign: "center",
-    fontFamily: "serif", // Aproximação do 'Lora' do site
-    lineHeight: 34,
-    marginBottom: 10,
-  },
-  heroSubtitle: {
-    fontSize: 16,
-    color: "#555",
-    textAlign: "center",
-    marginBottom: 25,
-  },
-  heroButton: {
-    backgroundColor: "#975238",
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 8,
-  },
-  heroButtonText: { color: "#FFF", fontWeight: "bold", fontSize: 16 },
+  
+  // Hero e Texto
+  heroSection: { paddingVertical: 30, backgroundColor: '#FFF', alignItems: 'center' },
+  heroTextContainer: { paddingHorizontal: 30, marginBottom: 25, alignItems: 'center' },
+  heroTitle: { fontSize: 26, fontWeight: 'bold', color: '#4A3728', textAlign: 'center', lineHeight: 32 },
+  heroSubtitle: { fontSize: 14, color: '#A68A73', textAlign: 'center', marginTop: 10 },
 
-  carouselContainer: {
-    width: 220,
-    height: 330,
-    elevation: 15,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-  },
-  carouselImage: { width: "100%", height: "100%", borderRadius: 10 },
-  skeletonPlaceholder: {
-    width: 220,
-    height: 330,
-    backgroundColor: "#E0E0E0",
-    borderRadius: 10,
-  },
+  // Carrossel
+  carouselWrapper: { width: width * 0.85, height: 400, alignItems: 'center', justifyContent: 'center' },
+  slide: { width: '100%', height: '100%', borderRadius: 15, elevation: 10, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, backgroundColor: '#FFF', overflow: 'hidden' },
+  carouselImage: { width: '100%', height: '100%' },
+  carouselBadge: { position: 'absolute', top: 15, right: 15, backgroundColor: '#975238', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
+  carouselBadgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase' },
+  
+  // Pontinhos do Carrossel
+  pagination: { flexDirection: 'row', marginTop: 15 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E3D5CA', marginHorizontal: 4 },
+  activeDot: { backgroundColor: '#975238', width: 20 },
 
-  featuredSection: { padding: 20 },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 20,
-    fontFamily: "serif",
-  },
-  horizontalScroll: { flexDirection: "row" },
-  bookCard: { width: 140, marginRight: 20 },
-  bookCover: { width: 140, height: 210, borderRadius: 8, marginBottom: 8 },
-  bookCardTitle: { fontSize: 14, fontWeight: "bold", color: "#333" },
-  bookCardAuthor: { fontSize: 12, color: "#975238" },
+  // Listagem de Livros
+  section: { padding: 20, marginTop: 10 },
+  sectionTitle: { fontSize: 20, fontWeight: 'bold', color: '#4A3728', marginBottom: 20, borderLeftWidth: 4, borderLeftColor: '#975238', paddingLeft: 10 },
+  bookGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }
 });
